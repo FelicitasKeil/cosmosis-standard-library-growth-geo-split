@@ -4,6 +4,8 @@ import numpy as np
 import warnings
 import traceback
 import contextlib
+from scipy import integrate, interpolate
+# import matplotlib.pyplot as plt
 
 # Finally we can now import camb
 import camb
@@ -431,8 +433,10 @@ def extract_camb_params(block, config, more_config):
     )
     # Setting up neutrinos by hand is hard. We let CAMB deal with it instead.
     with be_quiet_camb():
-        p.set_cosmology(ombh2 = block[cosmo, 'ombh2'],
-                        omch2 = block[cosmo, 'omch2'],
+        p.set_cosmology(ombh2 = block[cosmo, 'omega_b'] * block[cosmo, 'h0']**2,
+                        omch2 = (block[cosmo, 'omega_m_early'] - block[cosmo,
+                                                                       'omega_b']
+                                 ) * block[cosmo, 'h0']**2,
                         omk = block[cosmo, 'omega_k'],
                         **more_config["cosmology_params"],
                         **cosmology_params)
@@ -464,6 +468,7 @@ def save_derived_parameters(r, block):
         block[names.distances, k] = v
     block[names.distances, 'rs_zdrag'] = block[names.distances, 'rdrag']
     zstar = derived['zstar']
+    block[names.distances, 'zstar'] = zstar
     shift = r.angular_diameter_distance(zstar) * (1 + zstar) * (p.omegam * p.H0**2)**0.5 / C_KMS
     block[names.distances, "cmbshift"] = shift
     
@@ -481,7 +486,7 @@ def save_derived_parameters(r, block):
                                               ("omega_b"          , "omegab",          1),
                                               ("omega_c"          , "omegac",          1),
                                               ("omega_nu"         , "omeganu",         1),
-                                              ("omega_m"          , "omegam",          1),
+                                              ("omega_m_early"    , "omegam",          1),
                                               ("omega_lambda"     , "omegal",          1),
                                               ("ommh2"            , "ommh2",           1),]:
 
@@ -497,13 +502,22 @@ def save_derived_parameters(r, block):
 
 def save_distances(r, block, more_config):
     p = r.Params
+    cosmo = names.cosmological_parameters
+    h0 = block[cosmo, "h0"]
+    om_geo = block[cosmo, "omega_m"]
+    ok = block[cosmo, "omega_k"]
+    w0 = block[cosmo, "w"]
+    wa = block[cosmo, "wa"]
+    c_km_per_s = 299792.458
 
     # Evaluate z on a different grid than the spectra, so we can easily extend it further
     z_background = np.linspace(
-        more_config["zmin_background"], more_config["zmax_background"], more_config["nz_background"])
+        more_config["zmin_background"], more_config["zmax_background"],
+        more_config["nz_background"])
 
     #If desired, append logarithmically distributed redshifts
-    log_z = np.geomspace(more_config["zmax_background"], more_config['zmax_logz'], num = more_config['n_logz'])
+    log_z = np.geomspace(more_config["zmax_background"],
+                         more_config['zmax_logz'], num = more_config['n_logz'])
     z_background = np.append(z_background, log_z[1:])
     
     # Write basic distances and related quantities to datablock
@@ -511,35 +525,33 @@ def save_distances(r, block, more_config):
     block[names.distances, "z"] = z_background
     block[names.distances, "a"] = 1/(z_background+1)
 
-    D_C = r.comoving_radial_distance(z_background)
-    H = r.h_of_z(z_background)
-    D_H = 1 / H[0]
+    d_a_geo = np.zeros(len(z_background))
+    d_m_geo = np.zeros(len(z_background))
+    d_c_geo = np.zeros(len(z_background))
+    d_l_geo = np.zeros(len(z_background))
+    d_v_geo = np.zeros(len(z_background))
+    h_geo = np.zeros(len(z_background))
 
-    if p.omk == 0:
-        D_M = D_C
-    elif p.omk < 0:
-        s = np.sqrt(-p.omk)
-        D_M = (D_H / s)  * np.sin(s * D_C / D_H)
-    else:
-        s = np.sqrt(p.omk)
-        D_M = (D_H / s) * np.sinh(s * D_C / D_H)
-
-    D_L = D_M * (1 + z_background)
-    D_A = D_M / (1 + z_background)
-    D_V = ((1 + z_background)**2 * z_background * D_A**2 / H)**(1./3.)
+    for iz, z in enumerate(z_background):
+        d_a_geo[iz] = d_a(z, h0, om_geo, ok, w0, wa)
+        d_m_geo[iz] = d_a_geo[iz] * (1 + z)
+        d_c_geo[iz] = d_a(z, h0, om_geo, 0, w0, wa) * (1 + z)
+        d_l_geo[iz] = d_a_geo[iz] * (1 + z)**2
+        h_geo[iz] = h0 * 100 / e_z_inv(z, om_geo, ok, w0, wa) / c_km_per_s
+        d_v_geo[iz] = ((1 + z)**2 * z * d_a_geo[iz]**2 / h_geo[iz]) ** (1. / 3.)
 
     # Deal with mu(0), which is -np.inf
-    mu = np.zeros_like(D_L)
-    pos = D_L > 0
-    mu[pos] = 5*np.log10(D_L[pos])+25
+    mu = np.zeros_like(d_l_geo)
+    pos = d_l_geo > 0
+    mu[pos] = 5*np.log10(d_l_geo[pos])+25
     mu[~pos] = -np.inf
 
-    block[names.distances, "D_C"] = D_C
-    block[names.distances, "D_M"] = D_M
-    block[names.distances, "D_L"] = D_L
-    block[names.distances, "D_A"] = D_A
-    block[names.distances, "D_V"] = D_V
-    block[names.distances, "H"] = H
+    block[names.distances, "D_C"] = d_c_geo
+    block[names.distances, "D_M"] = d_m_geo
+    block[names.distances, "D_L"] = d_l_geo
+    block[names.distances, "D_A"] = d_a_geo
+    block[names.distances, "D_V"] = d_v_geo
+    block[names.distances, "H"] = h_geo
     block[names.distances, "MU"] = mu
 
     if more_config['do_bao']:
@@ -677,6 +689,142 @@ def save_cls(r, block):
         block[names.cmb_cl, "PT"] = cl[2:,1]*(ell*(ell+1))/(2*np.pi)
         block[names.cmb_cl, "PE"] = cl[2:,2]*(ell*(ell+1))/(2*np.pi)
 
+    rescale_cls_split(block)
+
+
+def w_int(z, w0, wa):
+    a = 1 / (1 + z)
+    # analytic integral for the w0wa model, see e.g. Equ.(9) of 1910.09273
+    return 3.0 * (wa * (a - 1.0) - np.log(a) * (1 + w0 + wa))
+
+
+def e_z_inv(z, om, ok, w0, wa):
+    return 1 / np.sqrt(
+        om * (1 + z) ** 3 + ok * (1 + z) ** 2 + (1 - om - ok) * np.exp(w_int(z, w0, wa)))
+
+
+def d_a(z, h0, om, ok, w0, wa):
+    '''angular diameter distance in Mpc '''
+    c_km_per_s = 299792.458
+    if ok == 0:
+        return c_km_per_s / 100 * integrate.quad(e_z_inv, 0.0, z,
+                                                 args=(om, ok, w0, wa),
+                                                 epsrel=1e-6, limit=50
+                                                 )[0] / (1. + z) / h0
+    else:
+        chi = np.sqrt(np.abs(ok)
+                      ) * integrate.quad(e_z_inv, 0.0, z,
+                                         args=(om, ok, w0, wa),
+                                         epsrel=1e-6, limit=50)[0]
+        if ok > 0:
+            return c_km_per_s / 100 / np.sqrt(np.abs(ok)
+                                              ) * np.sinh(chi) / (1. + z) / h0
+        elif ok < 0:
+            return c_km_per_s / 100 / np.sqrt(np.abs(ok)
+                                              ) * np.sin(chi) / (1. + z) / h0
+        
+def rescale_cls_split(block):
+    cosmo = names.cosmological_parameters
+    h0 = block[cosmo, "h0"]
+    om_geo = block[cosmo, "omega_m"]
+    om_early = block[cosmo, "omega_m_early"]
+    ok = block[cosmo, "omega_k"]
+    w0 = block[cosmo, "w"]
+    wa = block[cosmo, "wa"]
+    z_star = block[names.distances, 'zstar']
+    ell = block[names.cmb_cl, "ell"]
+    cmb_cl_TT = block[names.cmb_cl, "TT"]
+    cmb_cl_EE = block[names.cmb_cl, "EE"]
+    cmb_cl_BB = block[names.cmb_cl, "BB"]
+    cmb_cl_TE = block[names.cmb_cl, "TE"]
+
+    d_a_early = d_a(z_star, h0, om_early, ok, w0, wa)
+    d_a_geo = d_a(z_star, h0, om_geo, ok, w0, wa)
+
+    # avoid extrapolation
+    n_del = 0
+    ell_interp = ell * d_a_early / d_a_geo
+    for i in range(len(ell)):
+        if ell[i] < np.min(ell_interp):
+            ell_interp[i] = ell[i]
+        if ell[i] > np.max(ell_interp):
+            n_del = n_del + 1
+
+    if n_del > 0:
+        i_del = np.arange(len(ell) - n_del, len(ell), 1)
+        ell = np.delete(ell, i_del)
+
+    cmb_cl_TT_interp = interpolate.interp1d(ell_interp, cmb_cl_TT)
+    cmb_cl_EE_interp = interpolate.interp1d(ell_interp, cmb_cl_EE)
+    cmb_cl_BB_interp = interpolate.interp1d(ell_interp, cmb_cl_BB)
+    cmb_cl_TE_interp = interpolate.interp1d(ell_interp, cmb_cl_TE)
+
+    # plt.plot(block[names.cmb_cl, 'ell'], block[names.cmb_cl, 'TT'] ,
+    #     label=r"$C_\ell$ before rescaling")
+    # plt.plot(ell, cmb_cl_TT_interp(ell),
+    #     label=r"$C_\ell$ after rescaling")
+    # plt.title(r'Camb CMB $C_\ell$ TT, $\Omega^{\rm early}_{\rm m}=0.25$, $\Omega^{\rm geo}_{\rm m}=0.35$')
+    # plt.xlabel(r'$\ell$')
+    # plt.ylabel(r'$C_\ell$')
+    # plt.xscale('log')
+    # plt.yscale('log')
+    # plt.legend()
+    # plt.savefig("Camb_C_ell_TT_rescale.png", dpi=300)
+    # plt.clf()
+
+    # plt.plot(block[names.cmb_cl, 'ell'], block[names.cmb_cl, 'EE'] ,
+    #     label=r"$C_\ell$ before rescaling")
+    # plt.plot(ell, cmb_cl_EE_interp(ell),
+    #     label=r"$C_\ell$ after rescaling")
+    # plt.title(r'Camb CMB $C_\ell$ EE, $\Omega^{\rm early}_{\rm m}=0.25$, $\Omega^{\rm geo}_{\rm m}=0.35$')
+    # plt.xlabel(r'$\ell$')
+    # plt.ylabel(r'$C_\ell$')
+    # plt.xscale('log')
+    # plt.yscale('log')
+    # plt.legend()
+    # plt.savefig("Camb_C_ell_EE_rescale.png", dpi=300)
+    # plt.clf()
+    
+    # plt.plot(block[names.cmb_cl, 'ell'], block[names.cmb_cl, 'TE'] ,
+    #     label=r"$C_\ell$ before rescaling")
+    # plt.plot(ell, cmb_cl_TE_interp(ell),
+    #     label=r"$C_\ell$ after rescaling")
+    # plt.title(r'Camb CMB $C_\ell$ TE, $\Omega^{\rm early}_{\rm m}=0.25$, $\Omega^{\rm geo}_{\rm m}=0.35$')
+    # plt.xlabel(r'$\ell$')
+    # plt.ylabel(r'$C_\ell$')
+    # plt.legend()
+    # plt.savefig("Camb_C_ell_TE_rescale.png", dpi=300)
+    # plt.clf()
+
+    # plt.hlines(1, np.min(ell), np.max(ell), color="black")
+    # plt.plot(ell, cmb_cl_TE_interp(ell) / np.delete(block[names.cmb_cl, 'TE'],
+    #                                                 i_del),
+    #                                                 alpha=0.4,
+    #                                                 label=r"$C_\ell$ TE ratio")
+    # plt.plot(ell, cmb_cl_TT_interp(ell) / np.delete(block[names.cmb_cl, 'TT'],
+    #                                                 i_del),
+    #                                                 alpha=0.7,
+    #                                                 label=r"$C_\ell$ TT ratio")
+    # plt.plot(ell, cmb_cl_EE_interp(ell) / np.delete(block[names.cmb_cl, 'EE'],
+    #                                                 i_del),
+    #                                                 alpha=0.7,
+    #                                                 label=r"$C_\ell$ EE ratio")
+    # plt.title(r'Ratios of the CMB $C_\ell$')
+    # plt.xlabel(r'$\ell$')
+    # plt.ylabel(r'$C^{\rm rescaled}_\ell/C_\ell$')
+    # plt.xscale('log')
+    # plt.legend()
+    # plt.ylim(0.9, 1.1)
+    # plt.savefig("Camb_C_ell_ratio_rescale.png", dpi=300)
+    # plt.clf()
+
+
+    block[names.cmb_cl, "TT"] = cmb_cl_TT_interp(ell)
+    block[names.cmb_cl, "EE"] = cmb_cl_EE_interp(ell)
+    block[names.cmb_cl, "BB"] = cmb_cl_BB_interp(ell)
+    block[names.cmb_cl, "TE"] = cmb_cl_TE_interp(ell)
+
+    return 0
 
 def recompute_for_sigma8(camb_results, block, config, more_config):
     # Recompute the power spectra using a new initial power spectrum
