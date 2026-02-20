@@ -4,6 +4,9 @@ import numpy as np
 import warnings
 import traceback
 import contextlib
+# import pickle
+# import matplotlib.pyplot as plt
+from scipy import interpolate
 
 # Finally we can now import camb
 import camb
@@ -87,28 +90,6 @@ def make_z_for_pk(more_config):
         z = np.linspace(more_config['zmin'], more_config['zmax'], more_config["nz"])[::-1]
 
     return z
-
-def cosmopower_k():
-    """ 
-    Set the k values if CAMB module is used for training the CosmoPower.
-    This is a fixed grid with variable precision to maximise the prediction 
-    accuracy where there are a lot of changes in the power spectra.
-
-    This is currently hardcoded to empirical values initially set by Pierre Burger.
-    """
-    ranges = [
-        (1e-5, 1e-4, 20),
-        (1e-4, 1e-3, 40),
-        (1e-3, 1e-2, 60),
-        (1e-2, 1e-1, 80),
-        (1e-1, 1, 100),
-        (1, 10, 120),
-        (10, 20, 40)
-    ]
-
-    # Generate each segment and concatenate them
-    k = np.concatenate([np.geomspace(start, stop, num=num, endpoint=False) for start, stop, num in ranges])
-    return k
 
 def setup(options):
     mode = options.get_string(opt, 'mode', default="all")
@@ -563,7 +544,7 @@ def compute_growth_factor(r, block, P_tot, k, z, more_config):
     P_kmin = P_tot.P(z, kmin)
 
     D = np.sqrt(P_kmin / P_kmin[0]).squeeze()
-    return np.atleast_1d(D)
+    return D
 
 
 def save_matter_power(r, block, more_config):
@@ -574,8 +555,6 @@ def save_matter_power(r, block, more_config):
     # of these
     kmax_power = max(more_config['kmax'], more_config['kmax_extrapolate'])
     z = make_z_for_pk(more_config)[::-1]
-    if block.has_value('redshift_as_parameter', 'z'):
-        z = np.atleast_1d(block['redshift_as_parameter', 'z'])
 
     P_tot = None
 
@@ -592,8 +571,6 @@ def save_matter_power(r, block, more_config):
         )
         assert P.islog
         k = np.logspace(np.log10(kcalc[0]), np.log10(kmax_power), more_config['nk'])
-        if block.has_value('redshift_as_parameter', 'z'):
-            k = cosmopower_k()
 
         # P.P evaluates at k instead of logk
         p_k = P.P(z, k, grid=True)
@@ -628,6 +605,36 @@ def save_matter_power(r, block, more_config):
             p_k = P.P(z, k, grid=True)
             section_name = matter_power_section_names[transfer_type] + "_nl"
             block.put_grid(section_name, "z", z, "k_h", k, "p_k", p_k)
+
+    # with open("mps_lin_om-geo-03-om-growth-03_comp_low_acc.pkl", "wb") as out_pkl:
+    #     pickle.dump(block[section_name, "p_k"], out_pkl)
+
+    # with open("mps_lin_om-geo-03-om-growth-03_comp_low_acc.pkl", "rb") as in_pkl:
+    #     mps_geo_03_gr_03 = pickle.load(in_pkl)
+
+    # plt.plot(
+    #     block[section_name, "k_h"],
+    #     mps_geo_03_gr_03[0, :],
+    #     label="$\\Omega_{\\rm m}=0.3$",
+    #     color="black",
+    #     linewidth=0.9,
+    # )
+    # plt.title("Non-linear Power Spectrum at z=0")
+    # plt.xlabel("k [h/Mpc]")
+    # plt.ylabel("$P(k) [(h/Mpc)^3]$")
+    # plt.xscale("log")
+    # plt.yscale("log")
+    # plt.xlim(1e-4, 1e0)
+    # plt.ylim(1e0, 1e5)
+    # plt.legend()
+    # plt.tight_layout()
+    # plt.savefig("power_spectra_camb.png", dpi=300)
+    # plt.clf()
+
+    # lin_pk_camb_interp_3 = interpolate.RectBivariateSpline(
+    #     z, k, block[section_name, "p_k"], kx=1, ky=1)
+
+    # print('Pk at k/h=1e-4', lin_pk_camb_interp_3(0, 1e-4))
 
     # Get growth rates and sigma_8
     sigma_8 = r.get_sigma8()[::-1]

@@ -168,11 +168,14 @@ def execute(block, config):
     block[names.matter_power_nl, "B"] = boost_factor
 
     #pickle the rescaled power spectrum
-    with open("mps_lin_om-geo-03-om-growth-035_comp.pkl", "wb") as out_pkl:
-        pickle.dump(block[names.matter_power_lin, "P_K"], out_pkl)
+    # with open("mps_k_h_0677.pkl", "wb") as out_pkl:
+    #     pickle.dump(block[names.matter_power_nl, "k_h"], out_pkl)
+    
+    # with open("mps_lin_om-geo-035-om-growth-03_comp_low_acc.pkl", "wb") as out_pkl:
+    #     pickle.dump(block[names.matter_power_lin, "P_K"], out_pkl)
 
-    # with open("mps_om-geo-03-om-growth-03.pkl", "rb") as in_pkl:
-    #     mps_geo_03_gr_03 = pickle.load(in_pkl)
+    with open("mps_om-geo-03-om-growth-03_comp.pkl", "rb") as in_pkl:
+        mps_geo_03_gr_03 = pickle.load(in_pkl)
 
     # with open("mps_om-geo-03-om-growth-025.pkl", "rb") as in_pkl:
     #     mps_geo_03_gr_025 = pickle.load(in_pkl)
@@ -183,49 +186,27 @@ def execute(block, config):
     # with open("mps_om-geo-025-om-growth-03.pkl", "rb") as in_pkl:
     #     mps_geo_025_gr_03 = pickle.load(in_pkl)
 
-    # with open("mps_om-geo-035-om-growth-03.pkl", "rb") as in_pkl:
-    #     mps_geo_035_gr_03 = pickle.load(in_pkl)
+    with open("mps_om-geo-035-om-growth-03_comp.pkl", "rb") as in_pkl:
+        mps_geo_035_gr_03 = pickle.load(in_pkl)
 
-    # plt.hlines(
-    #     1, np.min(k_h), np.max(k_h), label="$\\Omega_{\\rm m}=0.3$", color="black"
-    # )
-    # plt.plot(
-    #     k_h,
-    #     mps_geo_03_gr_025[0, :] / mps_geo_03_gr_03[0, :],
-    #     label="$\\Omega^{geo}_{\\rm m}=0.3, \\Omega^{growth}_{\\rm m}=0.25$",
-    # )
-    # plt.plot(
-    #     k_h,
-    #     mps_geo_03_gr_035[0, :] / mps_geo_03_gr_03[0, :],
-    #     label="$\\Omega^{geo}_{\\rm m}=0.3, \\Omega^{growth}_{\\rm m}=0.35$",
-    # )
-    # plt.plot(
-    #     k_h,
-    #     mps_geo_025_gr_03[0, :] / mps_geo_03_gr_03[0, :],
-    #     label="$\\Omega^{geo}_{\\rm m}=0.25, \\Omega^{growth}_{\\rm m}=0.3$",
-    # )
-    # plt.plot(
-    #     k_h,
-    #     mps_geo_035_gr_03[0, :] / mps_geo_03_gr_03[0, :],
-    #     label="$\\Omega^{geo}_{\\rm m}=0.35, \\Omega^{growth}_{\\rm m}=0.3$",
-    # )
-    # plt.title("Non-linear Power Spectrum Ratio at z=0")
-    # plt.xlabel("k [h/Mpc]")
-    # plt.ylabel("$P_{\\rm rescaled}(k)/P(k)$")
-    # plt.xscale("log")
-    # plt.ylim(0.25, 1.6)
-    # plt.legend()
-    # plt.savefig("power_spectra_ratio_k.png", dpi=300)
-    # plt.clf()
+    with open("mps_om-geo-035-om-growth-03_comp_low_acc.pkl", "rb") as in_pkl:
+        mps_geo_035_gr_03_low_acc = pickle.load(in_pkl)
 
-    # plt.rcParams.update({"font.size": 13})
-    # plt.plot(
-    #     k_h,
-    #     mps_geo_03_gr_03[0, :],
-    #     label="$\\Omega_{\\rm m}=0.3$",
-    #     color="black",
-    #     linewidth=0.9,
-    # )
+    with open("mps_lin_om-geo-035-om-growth-03_comp_low_acc.pkl", "rb") as in_pkl:
+        mps_lin_geo_035_gr_03_low_acc = pickle.load(in_pkl)
+
+    plt.rcParams.update({"font.size": 13})
+    plt.plot(
+        k_h,
+        mps_geo_03_gr_03[0, :],
+        label="$\\Omega_{\\rm m}=0.3$",
+        color="black",
+        linewidth=0.9)
+    plt.plot(
+        k_h,
+        block[names.matter_power_lin, "P_K"][0, :],
+        label="linear $\\Omega_{\\rm m}=0.3$",
+        linewidth=0.9)
     # plt.plot(
     #     k_h,
     #     mps_geo_03_gr_025[0, :],
@@ -244,28 +225,80 @@ def execute(block, config):
     #     label="$\\Omega^{geo}_{\\rm m}=0.25, \\Omega^{growth}_{\\rm m}=0.3$",
     #     linewidth=0.9,
     # )
-    # plt.plot(
-    #     k_h,
-    #     mps_geo_035_gr_03[0, :],
-    #     label="$\\Omega^{geo}_{\\rm m}=0.35, \\Omega^{growth}_{\\rm m}=0.3$",
-    #     linewidth=0.9,
-    # )
-    # plt.title("Non-linear Power Spectrum at z=0")
-    # plt.xlabel("k [h/Mpc]")
-    # plt.ylabel("$P(k) [(h/Mpc)^3]$")
-    # plt.xscale("log")
-    # plt.yscale("log")
+    plt.plot(
+        k_h,
+        mps_geo_035_gr_03[0, :],
+        label="$\\Omega^{geo}_{\\rm m}=0.35, \\Omega^{growth}_{\\rm m}=0.3$",
+        linewidth=0.9)
+    plt.plot(
+        k_h,
+        mps_geo_035_gr_03_low_acc[0, :],
+        label="low acc $\\Omega^{geo}_{\\rm m}=0.35, \\Omega^{growth}_{\\rm m}=0.3$",
+        linewidth=0.9)
+    plt.plot(
+        k_h,
+        mps_lin_geo_035_gr_03_low_acc[0, :],
+        label="low acc linear $\\Omega^{geo}_{\\rm m}=0.35, \\Omega^{growth}_{\\rm m}=0.3$",
+        linewidth=0.9)
+    plt.title("Non-linear Power Spectrum at z=0")
+    plt.xlabel("k [h/Mpc]")
+    plt.ylabel("$P(k) [(h/Mpc)^3]$")
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.xlim(1e-4, 1e0)
+    plt.ylim(1e0, 1e5)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("power_spectra_comp.png", dpi=300)
+    plt.clf()
+
+    lin_pk_camb_interp_3 = interpolate.RectBivariateSpline(
+        z, k_h, block[names.matter_power_lin, "P_K"], kx=1, ky=1)
+
+    print('first k', k_h[0])
+    print('first Pk', block[names.matter_power_lin, "P_K"][0])
+    print('Pk at k/h=1e-4', lin_pk_camb_interp_3(0, 1e-4 / 0.677))
+
+    # plt.plot(z, g_z_geo, label="G_geo(z), Omega_m_geo=0.3")
+    # plt.plot(z, g_z_growth, label="G_growth(z), Omega_m_growth=0.35")
+    # plt.xlabel('z')
+    # plt.ylabel('Growth factor G')
     # plt.legend()
-    # plt.tight_layout()
-    # plt.savefig("compare_power_spectra.png", dpi=300)
+    # plt.savefig("G_z_compare.png", dpi=300)
     # plt.clf()
 
-    plt.plot(z, g_z_geo, label="G_geo(z), Omega_m_geo=0.3")
-    plt.plot(z, g_z_growth, label="G_growth(z), Omega_m_growth=0.35")
-    plt.xlabel('z')
-    plt.ylabel('Growth factor G')
+    plt.hlines(
+        1, np.min(k_h), np.max(k_h), label="$\\Omega_{\\rm m}=0.3$",
+        color="black"
+    )
+    # plt.plot(
+    #     k_h,
+    #     mps_geo_03_gr_025[0, :] / mps_geo_03_gr_03[0, :],
+    #     label="$\\Omega^{geo}_{\\rm m}=0.3, \\Omega^{growth}_{\\rm m}=0.25$",
+    # )
+    # plt.plot(
+    #     k_h,
+    #     mps_geo_03_gr_035[0, :] / mps_geo_03_gr_03[0, :],
+    #     label="$\\Omega^{geo}_{\\rm m}=0.3, \\Omega^{growth}_{\\rm m}=0.35$",
+    # )
+    # plt.plot(
+    #     k_h,
+    #     mps_geo_025_gr_03[0, :] / mps_geo_03_gr_03[0, :],
+    #     label="$\\Omega^{geo}_{\\rm m}=0.25, \\Omega^{growth}_{\\rm m}=0.3$",
+    # )
+    plt.plot(
+        k_h,
+        mps_geo_035_gr_03[0, :] / mps_geo_03_gr_03[0, :],
+        label="$\\Omega^{geo}_{\\rm m}=0.35, \\Omega^{growth}_{\\rm m}=0.3$",
+    )
+    plt.title("Non-linear Power Spectrum Ratio at z=0")
+    plt.xlabel("k [h/Mpc]")
+    plt.ylabel("$P_{\\rm rescaled}(k)/P(k)$")
+    plt.xscale("log")
+    plt.xlim(1e-4, 1e0)
+    plt.ylim(0, 2)
     plt.legend()
-    plt.savefig("G_z_compare.png", dpi=300)
+    plt.savefig("power_spectra_ratio_k_comp.png", dpi=300)
     plt.clf()
 
     return 0

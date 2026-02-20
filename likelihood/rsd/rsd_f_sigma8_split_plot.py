@@ -2,7 +2,6 @@ from cosmosis.gaussian_likelihood import GaussianLikelihood
 import numpy as np
 import scipy.interpolate
 import matplotlib.pyplot as plt
-import pickle
 
 # Data from Table 1 of https://arxiv.org/pdf/2205.05017
 
@@ -170,32 +169,19 @@ class RSDLikelihood(GaussianLikelihood):
     def extract_theory_points(self, block):
         # get f * sigma 8 from the Einstein-Boltzmann solver
         z_theory = block[self.x_section, self.x_name]
-        sigma8 = block[self.y_section, "sigma_8"]
-        f_sigma8 = block[self.y_section, "fsigma_8"]
-        print('z', z_theory)
-        print('sigma 8 theory', sigma8)
-        print('fsigma8 theory', f_sigma8)
+        f_sigma8 = block[self.y_section, "fsigma_8_growth"]
         z_data = self.data_x
         f = scipy.interpolate.interp1d(z_theory, f_sigma8)
         y = f(z_data)
 
-        # with open("f_sigma_8_bestfit-rsd.pkl", "wb") as out_pkl:
-        #     pickle.dump(y, out_pkl)
-
-        with open("f_sigma_8_bestfit-desi.pkl", "rb") as in_pkl:
-            y_desi = pickle.load(in_pkl)
-        with open("f_sigma_8_bestfit-rsd.pkl", "rb") as in_pkl:
-            y_rsd = pickle.load(in_pkl)
-
-        plt.plot(z_data, y_desi, label = 'Best-fit from DES+Planck+Panth+DESI')
-        plt.plot(z_data, y_rsd, label = 'Best-fit from DES+Planck+Panth+RSD')
+        plt.plot(z_data, y, label = 'Theory prediction w. Planck 2018')
         plt.errorbar(self.z, self.f_sigma_8, self.f_sigma_8_error, fmt='o',
                      label='RSD values')
         plt.xlabel('z')
         plt.ylabel(r'f $\sigma_8$(z)')
         plt.title(r'f $\sigma_8$(z) Cosmosis Likelihood')
         plt.legend()
-        plt.savefig('f_sigma_8_theory_data-bf.png')
+        plt.savefig('f_sigma_8_theory_data.png')
 
         return y
 

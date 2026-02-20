@@ -151,7 +151,7 @@ def execute(block, config):
     block[names.matter_power_nl,"B"] = boost_factor
 
     # pickle the rescaled power spectrum
-    # with open("mps_om-geo-025-om-growth-03.pkl", "wb") as out_pkl:
+    # with open("mps_om-geo-03-om-growth-03.pkl", "wb") as out_pkl:
     #     pickle.dump(block[names.matter_power_nl, "P_K"], out_pkl)
 
     with open("mps_om-geo-03-om-growth-03.pkl", "rb") as in_pkl:

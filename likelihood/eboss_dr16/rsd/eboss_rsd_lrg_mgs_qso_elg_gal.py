@@ -1,0 +1,80 @@
+from numpy import log, pi, interp, loadtxt, dot, append, linalg, genfromtxt, sqrt
+import os
+from cosmosis.datablock import names as section_names
+from cosmosis.datablock import option_section
+from cosmosis.gaussian_likelihood import GaussianLikelihood
+import matplotlib.pyplot as plt
+from scipy import interpolate
+
+cosmo = section_names.cosmological_parameters
+likes = section_names.likelihoods
+growthparams = section_names.growth_parameters
+dist = section_names.distances
+
+ROOT_dir = os.path.split(os.path.abspath(__file__))[0]
+
+c_km_per_s = 299792.458
+default_rd_fiducial = 147.8
+
+
+class MGSLikelihood(GaussianLikelihood):
+	
+	data_type = "MGS"
+	like_name = "mgs"
+	def __init__(self, options):
+		
+		super(MGSLikelihood, self).__init__(options)
+		# Allow override of these parameters
+		self.rd_fiducial = self.options.get_double("rd_fiducial", default_rd_fiducial)
+		self.feedback = self.options.get_bool("feedback", default=False)
+		
+	def build_data(self):
+		
+		print("LRG+MGS+ELG+GAL+QSO data")
+		print("FS: f(z)sigma8(z)")
+		# Reading data file
+		DATA_file = os.path.join(ROOT_dir,
+						   "sdss_LRG_MGS_QSO_ELG_GAL_FS_fs8.txt")
+			
+		DATA = loadtxt(DATA_file, usecols=(0, 1))
+		z_eff, data = DATA[:, 0], DATA[:, 1]
+
+		return z_eff, data
+		
+	def build_covariance(self):
+		
+		# Reading covariance matrix file
+		COV_file = os.path.join(ROOT_dir,
+						  'sdss_LRG_MGS_QSO_ELG_GAL_FS_fs8_covtot.txt')
+			
+		cov = loadtxt(COV_file)
+		self.inv_cov = linalg.inv(cov)
+		
+		return cov
+		
+	def build_inverse_covariance(self):
+		return self.inv_cov
+		
+	def extract_theory_points(self, block):
+		
+		# Redshift array
+		z = block[dist, 'z']
+		
+		#Find theory Dm and Dh at effective redshift by interpolation
+		z_eff = self.data_x
+		
+		z = block['growth_parameters', 'z']
+		fsigma8 = block['growth_parameters', 'fsigma_8']
+		# Find theory fsigma8 at fiducial redshift
+		fsigma8_interp = interpolate.interp1d(z, fsigma8)
+		fsigma8_z = fsigma8_interp(z_eff)
+
+		if self.feedback:
+			print()
+			print('             zeff   pred    data')
+			print('fsigma8:', self.data_x, fsigma8_z, self.data_y)
+			print()
+			
+		return fsigma8_z
+		
+setup, execute, cleanup = MGSLikelihood.build_module()

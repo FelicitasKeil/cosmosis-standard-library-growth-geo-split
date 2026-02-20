@@ -197,7 +197,6 @@ class DESILikelihood(GaussianLikelihood):
                             0.02236) ** (-0.13) * (
                                 block["cosmological_parameters", "nnu"] / 
                                 3.04) ** (-0.1)
-        print('sound horizon', r_s)
 
         block["distances", "H0rd"] = block["cosmological_parameters", "H0"] * r_s
 

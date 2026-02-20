@@ -85,7 +85,7 @@ def f_gamma_times_a(z, h0, om, om_geo, ok, w0, wa):
 def execute(block, config):
     zmin, zmax, dz, verbose, wmodel = config
     
-    z = block[names.matter_power_nl, "z"]
+    z = block[names.matter_power_lin, "z"]
 
     lna_vec = np.log(1/(1+z))[::-1]
 
@@ -122,15 +122,13 @@ def execute(block, config):
     block[names.growth_parameters,
           "sigma_8"] = g_z_growth / g_z_early * block[names.growth_parameters,
                                                     "sigma_8"]
-    block[names.growth_parameters,
-          "fsigma_8_growth"] = block[names.growth_parameters,
-                                     "f_z_growth"] * block[names.growth_parameters,
+    block[names.growth_parameters, "fsigma_8_growth"] = block[
+        names.growth_parameters, "f_z_growth"] * block[names.growth_parameters,
                                                            "sigma_8"]
+    block[names.growth_parameters, "fsigma_8"] = block[
+        names.growth_parameters, "fsigma_8_growth"]
     
-    k_h=block[names.matter_power_nl, "k_h"]
-    # non-linear boost factor
-    boost_factor = block[names.matter_power_nl,
-                         "P_K"]/block[names.matter_power_lin, "P_K"]
+    k_h=block[names.matter_power_lin, "k_h"]
 
     # Rescale power spectrum with the growth at every redshift
     P_k_temp = np.zeros((len(z), len(k_h)))
@@ -139,8 +137,12 @@ def execute(block, config):
         rescale_fac = g_z_growth[i]**2/g_z_early[i]**2
         P_k_temp[i, :] = rescale_fac * block[names.matter_power_lin,
                                              "P_K"][i, :]
-
     block[names.matter_power_lin, "P_K"] = P_k_temp
+
+    # non-linear boost factor
+    boost_factor = block[names.matter_power_nl,
+                         "P_K"]/block[names.matter_power_lin, "P_K"]
+
     # Multiplying by the boost matrix to get the non-linear power spectrum
     block[names.matter_power_nl,
           "P_K"] = boost_factor * block[names.matter_power_lin, "P_K"]
